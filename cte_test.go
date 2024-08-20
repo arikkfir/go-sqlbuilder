@@ -30,6 +30,28 @@ func ExampleWith() {
 	// WITH users (id, name) AS (SELECT id, name FROM users WHERE name IS NOT NULL), devices AS (SELECT device_id FROM devices) SELECT users.id, orders.id, devices.device_id FROM users, devices JOIN orders ON users.id = orders.user_id AND devices.device_id = orders.device_id
 }
 
+func ExampleCTETableBuilder_Recursive() {
+	sb := With(
+		CTETable("source_accounts", "id", "parent_id").Recursive().As(
+			UnionAll(
+				Select("p.id", "p.parent_id").
+					From("accounts AS p").
+					Where("p.id = 2"), // Show orders for account 2 and all its child accounts
+				Select("c.id", "c.parent_id").
+					From("accounts AS c").
+					Join("source_accounts AS sa", "c.parent_id = sa.id"),
+			),
+		),
+	).Select("o.id", "o.date", "o.amount").
+		From("orders AS o").
+		Join("source_accounts", "o.account_id = source_accounts.id")
+
+	fmt.Println(sb)
+
+	// Output:
+	// WITH RECURSIVE source_accounts (id, parent_id) AS ((SELECT p.id, p.parent_id FROM accounts AS p WHERE p.id = 2) UNION ALL (SELECT c.id, c.parent_id FROM accounts AS c JOIN source_accounts AS sa ON c.parent_id = sa.id)) SELECT o.id, o.date, o.amount FROM orders AS o JOIN source_accounts ON o.account_id = source_accounts.id
+}
+
 func ExampleCTEBuilder() {
 	usersBuilder := Select("id", "name", "level").From("users")
 	usersBuilder.Where(
@@ -81,4 +103,27 @@ func TestCTEBuilder(t *testing.T) {
 
 	sql = ctetb.String()
 	a.Equal(sql, "/* table init */ t (a, b) /* after table */ AS (SELECT a, b FROM t) /* after table as */")
+}
+
+func TestRecursiveCTEBuilder(t *testing.T) {
+	a := assert.New(t)
+	cteb := newCTEBuilder()
+	ctetb := newCTETableBuilder().Recursive()
+	cteb.SQL("/* init */")
+	cteb.With(ctetb)
+	cteb.SQL("/* after with */")
+
+	ctetb.SQL("/* table init */")
+	ctetb.Table("t", "a", "b")
+	ctetb.SQL("/* after table */")
+
+	ctetb.As(Select("a", "b").From("t"))
+	ctetb.SQL("/* after table as */")
+
+	sql, args := cteb.Build()
+	a.Equal(sql, "/* init */ WITH /* table init */ RECURSIVE t (a, b) /* after table */ AS (SELECT a, b FROM t) /* after table as */ /* after with */")
+	a.Assert(args == nil)
+
+	sql = ctetb.String()
+	a.Equal(sql, "/* table init */ RECURSIVE t (a, b) /* after table */ AS (SELECT a, b FROM t) /* after table as */")
 }

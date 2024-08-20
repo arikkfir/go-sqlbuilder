@@ -14,6 +14,11 @@ func CTETable(name string, cols ...string) *CTETableBuilder {
 	return DefaultFlavor.NewCTETableBuilder().Table(name, cols...)
 }
 
+// CTERecursiveTable creates a new recursive CTE table builder with default flavor.
+func CTERecursiveTable(name string, cols ...string) *CTETableBuilder {
+	return DefaultFlavor.NewCTETableBuilder().Recursive().Table(name, cols...)
+}
+
 func newCTETableBuilder() *CTETableBuilder {
 	return &CTETableBuilder{
 		args:      &Args{},
@@ -23,6 +28,7 @@ func newCTETableBuilder() *CTETableBuilder {
 
 // CTETableBuilder is a builder to build one table in CTE (Common Table Expression).
 type CTETableBuilder struct {
+	recursive  bool
 	name       string
 	cols       []string
 	builderVar string
@@ -31,6 +37,12 @@ type CTETableBuilder struct {
 
 	injection *injection
 	marker    injectionMarker
+}
+
+// Recursive adds the "RECURSIVE" keyword to the CTE, making it a CTE that references its own output.
+func (ctetb *CTETableBuilder) Recursive() *CTETableBuilder {
+	ctetb.recursive = true
+	return ctetb
 }
 
 // Table sets the table name and columns in a CTE table.
@@ -63,6 +75,10 @@ func (ctetb *CTETableBuilder) Build() (sql string, args []interface{}) {
 func (ctetb *CTETableBuilder) BuildWithFlavor(flavor Flavor, initialArg ...interface{}) (sql string, args []interface{}) {
 	buf := newStringBuilder()
 	ctetb.injection.WriteTo(buf, cteTableMarkerInit)
+
+	if ctetb.recursive {
+		buf.WriteLeadingString("RECURSIVE")
+	}
 
 	if ctetb.name != "" {
 		buf.WriteLeadingString(ctetb.name)
