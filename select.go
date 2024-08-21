@@ -103,7 +103,6 @@ func (sb *SelectBuilder) TableNames() []string {
 func (sb *SelectBuilder) With(builder *CTEBuilder) *SelectBuilder {
 	sb.marker = selectMarkerAfterWith
 	sb.cteBuilder = sb.Var(builder)
-	sb.tables = append(sb.tables, builder.TableNames()...)
 	return sb
 }
 
