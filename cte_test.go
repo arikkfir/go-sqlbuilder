@@ -18,7 +18,7 @@ func ExampleWith() {
 		CTETable("devices").As(
 			Select("device_id").From("devices"),
 		),
-	).Select("users.id", "orders.id", "devices.device_id").Join(
+	).Select("users.id", "orders.id", "devices.device_id").From("users", "devices").Join(
 		"orders",
 		"users.id = orders.user_id",
 		"devices.device_id = orders.device_id",
@@ -63,7 +63,7 @@ func ExampleCTEBuilder() {
 	fmt.Println(cteb)
 
 	sb := Select("valid_users.id", "valid_users.name", "orders.id").
-		From("users").With(cteb).
+		From("users", "valid_users").With(cteb).
 		Join("orders", "users.id = orders.user_id")
 	sb.Where(
 		sb.LessEqualThan("orders.price", 200),
